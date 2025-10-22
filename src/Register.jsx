@@ -5,7 +5,8 @@ import InputMask from "react-input-mask";
 
 // ---------- Config: use env so dev and prod switch automatically ----------
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5134";
-const REGISTER_URL = `${API_BASE}/auth/register`;
+const REGISTER_URL = `${API_BASE.replace(/\/+$/, '')}/auth/register`;
+
 
 // ---------- Simple validators ----------
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
