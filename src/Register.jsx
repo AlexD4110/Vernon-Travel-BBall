@@ -3,10 +3,10 @@ import axios from "axios";
 import { Form, Button, Alert, Row, Col, Card, Container, ProgressBar, Spinner } from "react-bootstrap";
 import InputMask from "react-input-mask";
 
-// ---------- Config: use env so dev and prod switch automatically ----------
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5134";
-const REGISTER_URL = `${API_BASE.replace(/\/+$/, '')}/auth/register`;
-
+// ---------- Config: env-driven base, trim trailing slashes ----------
+const rawBase = import.meta.env.VITE_API_BASE || "http://localhost:5134";
+const API_BASE = rawBase.replace(/\/+$/, ""); // remove any trailing /
+const REGISTER_URL = `${API_BASE}/auth/register`;
 
 // ---------- Simple validators ----------
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -15,7 +15,6 @@ const ZIP_REGEX = /^\d{5}$/;
 
 // Helpers
 const isNonEmpty = (v) => typeof v === "string" && v.trim().length > 0;
-const unmaskPhone = (v) => (v || "").replace(/[^\d]/g, ""); // "(860) 555-1212" -> "8605551212"
 
 const Register = () => {
   const userRef = useRef(null);
@@ -98,49 +97,49 @@ const Register = () => {
     e.preventDefault();
     setErrMsg("");
 
-    // Re-validate before submit
     if (!canSubmit || !canGoStep2Next || !canGoStep1Next) {
       setErrMsg("Please complete all required fields correctly before submitting.");
       errRef.current?.focus();
       return;
     }
 
-    // Prepare payload (trim email, unmask phones)
     const payload = {
       playerFirstName: playerFirstName.trim(),
       playerLastName: playerLastName.trim(),
       parentName: parentName.trim(),
       email: email.trim().toLowerCase(),
       gradeLevel,
-      phone, // masked string; backend can normalize; or send unmaskPhone(phone) if you prefer
+      phone, // masked string; backend will normalize
       gender,
       street: street.trim(),
       town: town.trim(),
       state,
       zip,
       emergencyContactName: emergencyContactName.trim(),
-      emergencyContactNumber, // masked; backend can normalize too
+      emergencyContactNumber, // masked
     };
 
     setSubmitting(true);
     try {
       const response = await axios.post(REGISTER_URL, payload, {
-        headers: { "Content-Type": "application/json" },
-        // withCredentials: false // not using cookies/sessions; omit entirely
+        headers: {
+          "Content-Type": "application/json",
+          // 🔐 send your shared internal key to backend
+          "x-api-key": import.meta.env.VITE_INTERNAL_API_KEY,
+        },
       });
 
-      // Success
       console.log(response?.data);
       setSuccess(true);
     } catch (err) {
-      // Network error
       if (!err?.response) {
         setErrMsg("No Server Response");
       } else if (err.response?.status === 409) {
-        // Duplicate from backend (unique violation)
         setErrMsg(err.response?.data?.message || "Already registered with this email/player.");
       } else if (err.response?.status === 400) {
         setErrMsg(err.response?.data?.message || "Invalid input");
+      } else if (err.response?.status === 401) {
+        setErrMsg("Unauthorized. Please contact the site admin.");
       } else {
         setErrMsg(err.response?.data?.message || "Registration Failed");
       }
@@ -406,9 +405,9 @@ const Register = () => {
               <h3>Next Steps:</h3>
               <ul className="list-unstyled">
                 <li><strong>Tryout Date:</strong> Tentatively, the week of October 27th</li>
-                <li><strong>Location:</strong>Rockville High School</li>
+                <li><strong>Location:</strong> Rockville High School</li>
                 <li>
-                  <strong>What to Bring:</strong>Parents/Guardians please attend with your child to fill out a Waiver!! Please wear sports wear. More details will be out over the next coming days.
+                  <strong>What to Bring:</strong> Parents/Guardians please attend with your child to fill out a Waiver!! Please wear sports wear. More details will be out over the next coming days.
                 </li>
               </ul>
               <p>
