@@ -1,151 +1,120 @@
 import { useRef, useState, useEffect } from "react";
-import axios from "axios";
-import { Form, Button, Alert, Row, Col, Card, Container, ProgressBar, Spinner } from "react-bootstrap";
-import InputMask from "react-input-mask";
+import axios from 'axios';
+import { Form, Button, Alert, Row, Col, Card, Container, ProgressBar } from 'react-bootstrap';
+import InputMask from 'react-input-mask';
 
-// ---------- Config: env-driven base, trim trailing slashes ----------
-const rawBase = import.meta.env.VITE_API_BASE || "http://localhost:5134";
-const API_BASE = rawBase.replace(/\/+$/, ""); // remove any trailing /
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^\(\d{3}\) \d{3}-\d{4}$/; // Updated for input mask
+const ZIP_REGEX = /^\d{5}$/; // For 5-digit zip codes
+
+// ✅ Use env-driven base so dev/prod switch automatically
+const rawBase = import.meta.env.VITE_API_BASE || 'http://localhost:5134';
+const API_BASE = rawBase.replace(/\/+$/, '');
 const REGISTER_URL = `${API_BASE}/auth/register`;
 
-// ---------- Simple validators ----------
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_MASK_REGEX = /^\(\d{3}\) \d{3}-\d{4}$/;
-const ZIP_REGEX = /^\d{5}$/;
-
-// Helpers
-const isNonEmpty = (v) => typeof v === "string" && v.trim().length > 0;
-
 const Register = () => {
-  const userRef = useRef(null);
-  const errRef = useRef(null);
+  const userRef = useRef();
+  const errRef = useRef();
 
-  // Steps
+  // Step state for multi-step form
   const [step, setStep] = useState(1);
   const totalSteps = 3;
 
-  // Loading & status
-  const [submitting, setSubmitting] = useState(false);
-  const [errMsg, setErrMsg] = useState("");
-  const [success, setSuccess] = useState(false);
-
   // Form fields
-  const [playerFirstName, setPlayerFirstName] = useState("");
-  const [playerLastName, setPlayerLastName] = useState("");
-  const [parentName, setParentName] = useState("");
-
-  const [email, setEmail] = useState("");
+  const [playerFirstName, setPlayerFirstName] = useState('');
+  const [playerLastName, setPlayerLastName] = useState('');
+  const [parentName, setParentName] = useState('');
+  const [email, setEmail] = useState('');
   const [validEmail, setValidEmail] = useState(false);
 
-  const [gradeLevel, setGradeLevel] = useState("");
-  const [phone, setPhone] = useState("");
+  const [gradeLevel, setGradeLevel] = useState('');
+  const [phone, setPhone] = useState('');
   const [validPhone, setValidPhone] = useState(false);
-  const [gender, setGender] = useState("");
+  const [gender, setGender] = useState('');
 
-  const [street, setStreet] = useState("");
-  const [town, setTown] = useState("");
-  const [state, setState] = useState("");
-  const [zip, setZip] = useState("");
+  const [street, setStreet] = useState('');
+  const [town, setTown] = useState('');
+  const [state, setState] = useState('');
+  const [zip, setZip] = useState('');
   const [validZip, setValidZip] = useState(false);
 
-  const [emergencyContactName, setEmergencyContactName] = useState("");
-  const [emergencyContactNumber, setEmergencyContactNumber] = useState("");
+  const [emergencyContactName, setEmergencyContactName] = useState('');
+  const [emergencyContactNumber, setEmergencyContactNumber] = useState('');
   const [validEmergencyPhone, setValidEmergencyPhone] = useState(false);
 
-  // Focus first input
+  const [errMsg, setErrMsg] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  // Focus on first input when component loads
   useEffect(() => {
-    userRef.current?.focus();
+    if (userRef.current) userRef.current.focus();
   }, []);
 
-  // Live validations
+  // Validations
   useEffect(() => setValidEmail(EMAIL_REGEX.test(email)), [email]);
-  useEffect(() => setValidPhone(PHONE_MASK_REGEX.test(phone)), [phone]);
+  useEffect(() => setValidPhone(PHONE_REGEX.test(phone)), [phone]);
   useEffect(() => setValidZip(ZIP_REGEX.test(zip)), [zip]);
-  useEffect(() => setValidEmergencyPhone(PHONE_MASK_REGEX.test(emergencyContactNumber)), [emergencyContactNumber]);
-
-  // Step gating
-  const canGoStep1Next =
-    isNonEmpty(playerFirstName) &&
-    isNonEmpty(playerLastName) &&
-    isNonEmpty(gradeLevel) &&
-    isNonEmpty(gender);
-
-  const canGoStep2Next =
-    isNonEmpty(parentName) &&
-    validEmail &&
-    validPhone;
-
-  const canSubmit =
-    isNonEmpty(street) &&
-    isNonEmpty(town) &&
-    isNonEmpty(state) &&
-    validZip &&
-    isNonEmpty(emergencyContactName) &&
-    validEmergencyPhone;
+  useEffect(() => setValidEmergencyPhone(PHONE_REGEX.test(emergencyContactNumber)), [emergencyContactNumber]);
 
   const nextStep = () => {
-    setErrMsg("");
-    setStep((s) => Math.min(totalSteps, s + 1));
-  };
-  const prevStep = () => {
-    setErrMsg("");
-    setStep((s) => Math.max(1, s - 1));
+    setErrMsg('');
+    setStep(step + 1);
   };
 
-  // Submit
+  const prevStep = () => {
+    setErrMsg('');
+    setStep(step - 1);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrMsg("");
+    const isEmailValid = EMAIL_REGEX.test(email);
+    const isPhoneValid = PHONE_REGEX.test(phone);
+    const isZipValid = ZIP_REGEX.test(zip);
+    const isEmergencyPhoneValid = PHONE_REGEX.test(emergencyContactNumber);
 
-    if (!canSubmit || !canGoStep2Next || !canGoStep1Next) {
-      setErrMsg("Please complete all required fields correctly before submitting.");
+    if (!isEmailValid || !isPhoneValid || !isZipValid || !isEmergencyPhoneValid) {
+      setErrMsg('Please fill out the form correctly.');
       errRef.current?.focus();
       return;
     }
 
-    const payload = {
-      playerFirstName: playerFirstName.trim(),
-      playerLastName: playerLastName.trim(),
-      parentName: parentName.trim(),
-      email: email.trim().toLowerCase(),
-      gradeLevel,
-      phone, // masked string; backend will normalize
-      gender,
-      street: street.trim(),
-      town: town.trim(),
-      state,
-      zip,
-      emergencyContactName: emergencyContactName.trim(),
-      emergencyContactNumber, // masked
-    };
-
-    setSubmitting(true);
     try {
-      const response = await axios.post(REGISTER_URL, payload, {
-        headers: {
-          "Content-Type": "application/json",
-          // 🔐 send your shared internal key to backend
-          "x-api-key": import.meta.env.VITE_INTERNAL_API_KEY,
+      const response = await axios.post(
+        REGISTER_URL,
+        {
+          playerFirstName,
+          playerLastName,
+          parentName,
+          email,
+          gradeLevel,
+          phone,
+          gender,
+          street,
+          town,
+          state,
+          zip,
+          emergencyContactName,
+          emergencyContactNumber
         },
-      });
-
+        {
+          headers: { 'Content-Type': 'application/json' },
+          // ❌ Removed withCredentials — not needed and can trigger CORS issues
+        }
+      );
       console.log(response?.data);
       setSuccess(true);
     } catch (err) {
       if (!err?.response) {
-        setErrMsg("No Server Response");
-      } else if (err.response?.status === 409) {
-        setErrMsg(err.response?.data?.message || "Already registered with this email/player.");
+        setErrMsg('No Server Response');
       } else if (err.response?.status === 400) {
-        setErrMsg(err.response?.data?.message || "Invalid input");
-      } else if (err.response?.status === 401) {
-        setErrMsg("Unauthorized. Please contact the site admin.");
+        setErrMsg(err.response.data?.message || 'Invalid input');
+      } else if (err.response?.status === 409) {
+        setErrMsg(err.response.data?.message || 'Duplicate registration');
       } else {
-        setErrMsg(err.response?.data?.message || "Registration Failed");
+        setErrMsg('Registration Failed');
       }
       errRef.current?.focus();
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -153,23 +122,11 @@ const Register = () => {
     <>
       {!success ? (
         <Container className="mt-5">
-          <Card style={{ maxWidth: "50rem", margin: "0 auto" }}>
-            <Card.Header as="h2" className="text-center">
-              Tryout Registration
-            </Card.Header>
+          <Card style={{ maxWidth: '50rem', margin: '0 auto' }}>
+            <Card.Header as="h2" className="text-center">Tryout Registration</Card.Header>
             <Card.Body>
-              {errMsg && (
-                <Alert ref={errRef} variant="danger" aria-live="assertive">
-                  {errMsg}
-                </Alert>
-              )}
-
-              <ProgressBar
-                now={(step / totalSteps) * 100}
-                className="mb-4"
-                label={`Step ${step} of ${totalSteps}`}
-              />
-
+              {errMsg && <Alert ref={errRef} variant="danger" aria-live="assertive">{errMsg}</Alert>}
+              <ProgressBar now={(step / totalSteps) * 100} className="mb-4" label={`Step ${step} of ${totalSteps}`} />
               <Form onSubmit={handleSubmit}>
                 {step === 1 && (
                   <>
@@ -230,11 +187,7 @@ const Register = () => {
                       </Form.Select>
                     </Form.Group>
 
-                    <Button
-                      variant="primary"
-                      onClick={nextStep}
-                      disabled={!canGoStep1Next}
-                    >
+                    <Button variant="primary" onClick={nextStep}>
                       Next
                     </Button>
                   </>
@@ -263,7 +216,7 @@ const Register = () => {
                           placeholder="Enter email"
                           onChange={(e) => setEmail(e.target.value)}
                           value={email}
-                          isInvalid={email !== "" && !validEmail}
+                          isInvalid={email && !validEmail}
                           isValid={validEmail}
                           required
                         />
@@ -278,11 +231,13 @@ const Register = () => {
                           mask="(999) 999-9999"
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          className={`form-control ${phone && !validPhone ? "is-invalid" : ""}`}
+                          className="form-control"
                           required
                         />
                         {!validPhone && phone && (
-                          <div className="invalid-feedback d-block">Invalid Phone Number.</div>
+                          <div className="invalid-feedback d-block">
+                            Invalid Phone Number.
+                          </div>
                         )}
                       </Form.Group>
                     </Row>
@@ -290,11 +245,7 @@ const Register = () => {
                     <Button variant="secondary" onClick={prevStep} className="me-2">
                       Previous
                     </Button>
-                    <Button
-                      variant="primary"
-                      onClick={nextStep}
-                      disabled={!canGoStep2Next}
-                    >
+                    <Button variant="primary" onClick={nextStep}>
                       Next
                     </Button>
                   </>
@@ -336,7 +287,6 @@ const Register = () => {
                         >
                           <option value="">Select State</option>
                           <option value="CT">Connecticut</option>
-                          {/* add more states as needed */}
                         </Form.Select>
                       </Form.Group>
 
@@ -346,11 +296,13 @@ const Register = () => {
                           mask="99999"
                           value={zip}
                           onChange={(e) => setZip(e.target.value)}
-                          className={`form-control ${zip && !validZip ? "is-invalid" : ""}`}
+                          className="form-control"
                           required
                         />
                         {!validZip && zip && (
-                          <div className="invalid-feedback d-block">Invalid Zip Code.</div>
+                          <div className="invalid-feedback d-block">
+                            Invalid Zip Code.
+                          </div>
                         )}
                       </Form.Group>
                     </Row>
@@ -373,19 +325,21 @@ const Register = () => {
                         mask="(999) 999-9999"
                         value={emergencyContactNumber}
                         onChange={(e) => setEmergencyContactNumber(e.target.value)}
-                        className={`form-control ${emergencyContactNumber && !validEmergencyPhone ? "is-invalid" : ""}`}
+                        className="form-control"
                         required
                       />
                       {!validEmergencyPhone && emergencyContactNumber && (
-                        <div className="invalid-feedback d-block">Invalid Emergency Contact Number.</div>
+                        <div className="invalid-feedback d-block">
+                          Invalid Emergency Contact Number.
+                        </div>
                       )}
                     </Form.Group>
 
                     <Button variant="secondary" onClick={prevStep} className="me-2">
                       Previous
                     </Button>
-                    <Button variant="success" type="submit" disabled={!canSubmit || submitting}>
-                      {submitting ? (<><Spinner size="sm" className="me-2" /> Submitting…</>) : "Submit Registration"}
+                    <Button variant="success" type="submit">
+                      Submit Registration
                     </Button>
                   </>
                 )}
@@ -395,28 +349,29 @@ const Register = () => {
         </Container>
       ) : (
         // Confirmation Page
-        <Container className="mt-5">
-          <Card style={{ maxWidth: "50rem", margin: "0 auto" }}>
-            <Card.Body className="text-center">
-              <h1>Registration Successful!</h1>
-              <p>
-                Thank you, {parentName}, for registering {playerFirstName} {playerLastName}.
-              </p>
-              <h3>Next Steps:</h3>
-              <ul className="list-unstyled">
-                <li><strong>Tryout Date:</strong> Tentatively, the week of October 27th</li>
-                <li><strong>Location:</strong> Rockville High School</li>
-                <li>
-                  <strong>What to Bring:</strong> Parents/Guardians please attend with your child to fill out a Waiver!! Please wear sports wear. More details will be out over the next coming days.
-                </li>
-              </ul>
-              <p>
-                Questions? Use our contact page or email us at <strong>vernonyouthbasketball@gmail.com</strong>.
-              </p>
-              <Button variant="primary" href="/">Return to Home</Button>
-            </Card.Body>
-          </Card>
-        </Container>
+<Container className="mt-5">
+  <Card style={{ maxWidth: '50rem', margin: '0 auto' }}>
+    <Card.Body className="text-center">
+      <h1>Registration Successful!</h1>
+      <p>
+        Thank you, {parentName}, for registering {playerFirstName} {playerLastName}.
+      </p>
+      <h3>Next Steps:</h3>
+      <ul className="list-unstyled">
+        <li><strong>Tryout Date:</strong> Tentatively, the week of October 27th</li>
+        <li><strong>Location:</strong> Rockville High School</li>
+        <li>
+          <strong>What to Bring:</strong> Parents/Guardians please attend with your child to fill out a Waiver!! Please wear sports wear. More details will be out over the next coming days.
+        </li>
+      </ul>
+      <p>
+        Questions? Use our contact page or email us at <strong>vernonyouthbasketball@gmail.com</strong>.
+      </p>
+      <Button variant="primary" href="/">Return to Home</Button>
+    </Card.Body>
+  </Card>
+</Container>
+
       )}
     </>
   );
